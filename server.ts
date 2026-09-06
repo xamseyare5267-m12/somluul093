@@ -571,24 +571,28 @@ async function startServer() {
     next();
   });
 
-  // Every API request reads the authoritative Supabase state before business logic runs.
-  // This is deliberately strict for multi-instance correctness: no Vercel/Railway instance
-  // is allowed to serve a stale private/social graph from a local db.json snapshot.
-  app.use(async (req, res, next) => {
+  // Refresh the warm instance from Supabase in the background. API requests must
+  // remain available from the last known snapshot when Supabase is slow or briefly
+  // unavailable; failing every route closed here made posts, uploads, chat, and
+  // notifications all return 503 during a transient database timeout.
+  let backgroundHydration: Promise<void> | null = null;
+  let lastHydrationStartedAt = 0;
+  const HYDRATION_COOLDOWN_MS = 15000;
+  app.use((req, res, next) => {
     if (!req.path.startsWith('/api/') || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       next();
       return;
     }
-    try {
-      await Promise.race([
-        syncDbFromSupabase(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase read timeout')), 8000))
-      ]);
-      next();
-    } catch (err: any) {
-      console.error('[Supabase DB] Request hydration failed:', err?.message || err);
-      res.status(503).json({ error: 'Database temporarily unavailable. Please retry.' });
+    const now = Date.now();
+    if (!backgroundHydration && now - lastHydrationStartedAt >= HYDRATION_COOLDOWN_MS) {
+      lastHydrationStartedAt = now;
+      backgroundHydration = syncDbFromSupabase()
+        .catch((err: any) => {
+          console.warn('[Supabase DB] Background refresh failed; serving cached state:', err?.message || err);
+        })
+        .finally(() => { backgroundHydration = null; });
     }
+    next();
   });
 
   // Parse JSON and Form Data
