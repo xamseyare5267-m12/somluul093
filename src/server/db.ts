@@ -98,6 +98,7 @@ let memoryDbCache: DBStructure | null = null;
 let remoteStateVersion = 0;
 let lastRemoteSnapshot: DBStructure | null = null;
 let remoteWriteQueue: Promise<void> = Promise.resolve();
+let remoteSyncInFlight: Promise<void> | null = null;
 
 function supabaseConfig() {
   const url = getCleanSupabaseBaseUrl(process.env.SUPABASE_URL);
@@ -207,7 +208,13 @@ function trackPendingWrite(p: Promise<any>): Promise<any> {
 /** Await every in-flight cloud write. Call this before a serverless function is allowed to exit. */
 export async function flushPendingWrites(): Promise<void> {
   if (pendingCloudWrites.size === 0) return;
-  await Promise.allSettled(Array.from(pendingCloudWrites));
+  const results = await Promise.allSettled(Array.from(pendingCloudWrites));
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failed) throw failed.reason;
+}
+
+export function isDbWritePending(): boolean {
+  return pendingCloudWrites.size > 0;
 }
 
 
@@ -398,7 +405,7 @@ export async function syncDbToSupabase(): Promise<void> {
   if (!cfg) return;
   const state = memoryDbCache || initializeDB();
   const base = lastRemoteSnapshot || state;
-  remoteWriteQueue = remoteWriteQueue.then(() => persistRemoteState(state, base));
+  remoteWriteQueue = remoteWriteQueue.catch(() => undefined).then(() => persistRemoteState(state, base));
   await remoteWriteQueue;
 }
 
@@ -415,12 +422,21 @@ export async function checkSupabaseHealth(): Promise<{ ok: boolean; latencyMs?: 
 }
 
 export async function syncDbFromSupabase(): Promise<void> {
-  const remote = await readRemoteState();
-  if (!remote) return;
-  memoryDbCache = remote.state;
-  remoteStateVersion = remote.version;
-  lastRemoteSnapshot = structuredClone(remote.state);
-  console.log(`[Supabase DB] Loaded authoritative app_state version ${remote.version}.`);
+  if (remoteSyncInFlight) return remoteSyncInFlight;
+  if (isDbWritePending()) return;
+  remoteSyncInFlight = (async () => {
+    const remote = await readRemoteState();
+    if (!remote || isDbWritePending()) return;
+    memoryDbCache = remote.state;
+    remoteStateVersion = remote.version;
+    lastRemoteSnapshot = structuredClone(remote.state);
+    console.log(`[Supabase DB] Loaded authoritative app_state version ${remote.version}.`);
+  })();
+  try {
+    await remoteSyncInFlight;
+  } finally {
+    remoteSyncInFlight = null;
+  }
 }
 
 /** Call after any external restore (GCS/Supabase) so warm instances pick up new file */
@@ -444,7 +460,10 @@ function countRecords(db: DBStructure): number {
 export function writeDB(data: DBStructure): void {
   const base = lastRemoteSnapshot ? structuredClone(lastRemoteSnapshot) : structuredClone(memoryDbCache || data);
   memoryDbCache = data;
-  const job = remoteWriteQueue.then(() => persistRemoteState(data, base));
+  // Recover the queue after a transient remote failure. A rejected promise must
+  // not permanently block every later post/message/profile write in the warm
+  // serverless instance.
+  const job = remoteWriteQueue.catch(() => undefined).then(() => persistRemoteState(data, base));
   remoteWriteQueue = job.catch(err => {
     console.error('[Supabase DB] Authoritative write failed:', err?.message || err);
     throw err;

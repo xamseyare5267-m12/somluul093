@@ -2701,8 +2701,10 @@ async function startServer() {
     // Await cloud backup so post survives serverless freeze
     try {
       await writeDBAsync(db);
-    } catch (_) {
-      writeDB(db);
+    } catch (err: any) {
+      console.error('[Posts] Durable write failed:', err?.message || err);
+      res.status(503).json({ error: 'Database temporarily unavailable. Please retry.' });
+      return;
     }
     // Phase durability: also write normalized posts table immediately (SCALE_MODE)
     try {
