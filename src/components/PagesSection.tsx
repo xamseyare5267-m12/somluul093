@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useLanguage } from './LanguageContext';
+import { uploadMediaFile } from '../lib/scaleClient';
 import {
   Flag,
   Plus,
@@ -224,22 +225,26 @@ export const PagesSection: React.FC<Props> = ({ user, authToken, onShowToast }) 
     }
   };
 
-  const onPickMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
       onShowToast?.(so ? 'Fadlan dooro sawir ama video' : 'Please choose an image or video', 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const uploadedUrl = await uploadMediaFile(file);
+      if (!uploadedUrl) throw new Error('Media upload returned no URL');
       setPostMedia({
-        url: String(reader.result),
+        url: uploadedUrl,
         type: file.type.startsWith('video/') ? 'video' : 'image',
       });
+    } catch (err) {
+      console.error('Error uploading page media:', err);
+      onShowToast?.(so ? 'Sawirka lama rarin' : 'Media upload failed', 'error');
+    } finally {
+      e.target.value = '';
     };
-    reader.readAsDataURL(file);
-    e.target.value = '';
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {

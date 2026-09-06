@@ -10,7 +10,7 @@
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/api"
+      "destination": "/api/uploads/$1"
     },
     {
       "source": "/((?!assets/|sw\\.js|manifest\\.json|favicon|icon-).*)",

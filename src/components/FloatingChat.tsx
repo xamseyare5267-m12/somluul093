@@ -16,6 +16,7 @@ import {
 } from '../lib/soundUtils';
 import { useAudioRecorder } from '../lib/useAudioRecorder';
 import { VoiceNotePlayer } from './VoiceNotePlayer';
+import { useLanguage } from './LanguageContext';
 
 export interface FloatingChatWindow {
   id: string; // roomId or target profile id
@@ -42,6 +43,8 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
   onShowToast,
   onViewProfile,
 }) => {
+  const { language } = useLanguage();
+  const triggerAlert = (message: string, type: 'success' | 'error') => onShowToast?.(message, type);
   const [openChats, setOpenChats] = useState<FloatingChatWindow[]>([]);
   const [messages, setMessages] = useState<Record<string, any[]>>({});
   const [inputTexts, setInputTexts] = useState<Record<string, string>>({});

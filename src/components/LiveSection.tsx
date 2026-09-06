@@ -65,8 +65,14 @@ export const LiveSection: React.FC<LiveSectionProps> = ({ user, authToken, onSho
       const videoPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
       const audioPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
       if (videoPub?.track && localRef.current) videoPub.track.attach(localRef.current);
-      if (audioPub?.track) await audioPub.track.setEnabled(!muted);
-      await videoPub?.track?.setEnabled(!cameraOff);
+      if (audioPub?.track) {
+        if (muted) await audioPub.track.mute();
+        else await audioPub.track.unmute();
+      }
+      if (videoPub?.track) {
+        if (cameraOff) await videoPub.track.mute();
+        else await videoPub.track.unmute();
+      }
     }
     return room;
   };
@@ -106,8 +112,8 @@ export const LiveSection: React.FC<LiveSectionProps> = ({ user, authToken, onSho
   };
   useEffect(() => () => { void cleanupMedia(); }, []);
 
-  const toggleMic = async () => { const p = roomRef.current?.localParticipant; const pub = p?.getTrackPublication(Track.Source.Microphone); if (pub?.track) { const next = !muted; await pub.track.setEnabled(!next); setMuted(next); } };
-  const toggleCamera = async () => { const p = roomRef.current?.localParticipant; const pub = p?.getTrackPublication(Track.Source.Camera); if (pub?.track) { const next = !cameraOff; await pub.track.setEnabled(!next); setCameraOff(next); } };
+  const toggleMic = async () => { const p = roomRef.current?.localParticipant; const pub = p?.getTrackPublication(Track.Source.Microphone); if (pub?.track) { const next = !muted; if (next) await pub.track.mute(); else await pub.track.unmute(); setMuted(next); } };
+  const toggleCamera = async () => { const p = roomRef.current?.localParticipant; const pub = p?.getTrackPublication(Track.Source.Camera); if (pub?.track) { const next = !cameraOff; if (next) await pub.track.mute(); else await pub.track.unmute(); setCameraOff(next); } };
   const sendComment = async () => { if (!comment.trim() || !activeLive || !authToken) return; try { const r = await axios.post(`/api/live/${activeLive.id}/comment`, { content: comment.trim() }, { headers: { Authorization: `Bearer ${authToken}` } }); setActiveLive(r.data.live || activeLive); setComment(''); } catch {} };
   const react = async (reaction: 'like' | 'love') => { if (!activeLive || !authToken) return; try { await axios.post(`/api/live/${activeLive.id}/react`, { reaction }, { headers: { Authorization: `Bearer ${authToken}` } }); playNotifByType(reaction); } catch {} };
   const sendGift = async (g: typeof GIFTS[0]) => { if (!activeLive || !authToken) return; try { await axios.post('/api/gifts/send', { toUserId: activeLive.hostId, giftId: g.id, giftName: g.name, coinCost: g.coins, liveId: activeLive.id }, { headers: { Authorization: `Bearer ${authToken}` } }); onShowToast?.(language === 'so' ? `Waxaad dirtay ${g.name}` : `Sent ${g.name}`, 'success'); playNotifByType('gift'); } catch (e: any) { onShowToast?.(e?.response?.data?.error || 'Gift failed', 'error'); } };

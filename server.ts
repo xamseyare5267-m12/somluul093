@@ -528,7 +528,7 @@ async function startServer() {
     const configured = String(process.env.CORS_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
     const requestOrigin = req.headers.origin;
     const defaults = process.env.NODE_ENV === 'production' || process.env.VERCEL
-      ? []
+      ? ['https://somluul093.netlify.app']
       : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
     const allowed = new Set([...defaults, ...configured]);
     if (requestOrigin && allowed.has(requestOrigin)) {
@@ -593,7 +593,9 @@ async function startServer() {
 
   // Parse JSON and Form Data
   app.use(express.json({
-    limit: '2mb',
+    // Keep JSON posts usable for small legacy data-url media while normal uploads
+    // use /api/media/sign or /api/files/upload and avoid serverless body limits.
+    limit: '12mb',
     verify: (req, _res, buf) => {
       (req as any).rawBody = Buffer.from(buf);
     }
@@ -1002,7 +1004,6 @@ async function startServer() {
     return res.json({ success: true, alreadySubscribed: !!existing });
   });
 
-  // Health check
   // Browsers request /favicon.ico by default
   app.get('/favicon.ico', (req, res) => {
     const candidates = [
@@ -1018,68 +1019,6 @@ async function startServer() {
     }
     res.status(204).end();
   });
-
-  app.get('/api/health', async (req, res) => {
-    try { await ensureDbHydrated(); } catch (_) {}
-    let posts = 0;
-    let profiles = 0;
-    let messages = 0;
-    let rooms = 0;
-    try {
-      const db = readDB();
-      posts = (db.posts || []).length;
-      profiles = (db.profiles || []).length;
-      messages = (db.chatMessages || []).length;
-      rooms = (db.chatRooms || []).length;
-    } catch (_) {}
-    const hasSupabase = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const hasGcs = !!process.env.GCS_BUCKET_NAME;
-    const supabaseHealth = hasSupabase ? await checkSupabaseHealth() : { ok: false, error: 'not configured' };
-    const jwtOk = !!(process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 16
-      && process.env.JWT_SECRET !== 'replace-with-openssl-rand-hex-32'
-      && !process.env.JWT_SECRET.startsWith('REPLACE'));
-    res.json({
-      status: 'ok',
-      time: new Date().toISOString(),
-      posts,
-      profiles,
-      messages,
-      rooms,
-      persistence: hasSupabase && supabaseHealth.ok,
-      supabase: hasSupabase,
-      supabaseHealth,
-      gcs: hasGcs,
-      jwtConfigured: jwtOk,
-      ready: jwtOk && hasSupabase && supabaseHealth.ok,
-      configErrors: typeof productionConfigErrors !== 'undefined' ? productionConfigErrors : [],
-      ownerConfigured: !!(process.env.OWNER_USERNAME && process.env.OWNER_PASSWORD),
-      cutover: typeof cutoverEnabled === 'function' ? cutoverEnabled() : false,
-      scaleMode: process.env.SCALE_MODE === '1' || process.env.SCALE_MODE === 'true',
-      region: process.env.VERCEL_REGION || process.env.FLY_REGION || process.env.RAILWAY_REGION || null,
-      cdnBase: process.env.CDN_BASE_URL || null,
-      turnConfigured: !!(process.env.TURN_URL && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL),
-      redisConfigured: !!process.env.REDIS_URL,
-      ops: '/api/ops/health',
-      metrics: '/api/ops/metrics',
-    });
-  });
-
-  // --- SCALE ARCHITECTURE (normalized tables, direct media, TURN ICE, cache) ---
-  try {
-    mountScaleRoutes(app, { authMiddleware });
-    mountOpsRoutes(app, { authMiddleware });
-    console.log('[Scale] Scale + Ops routes mounted (SCALE_MODE=%s)', process.env.SCALE_MODE || '0');
-  } catch (err: any) {
-    console.error('[Scale] Failed to mount scale routes:', err?.message || err);
-  }
-
-  // Phase 7: Redis bus + background job workers (cleanup, fan-out)
-  try {
-    void startRealtimeBus().then(() => console.log('[Scale] Realtime bus ready'));
-    startJobWorkers();
-  } catch (err: any) {
-    console.error('[Scale] Job workers failed to start:', err?.message || err);
-  }
 
   // --- 1. EMAIL SIGN UP / LOGIN ENDPOINTS ---
 
@@ -2164,7 +2103,7 @@ async function startServer() {
       return;
     }
 
-    upload.single('avatar')(req, res, (err) => {
+    upload.single('avatar')(req, res, async (err) => {
       if (err) {
         res.status(400).json({ error: err.message });
         return;
@@ -2176,23 +2115,25 @@ async function startServer() {
 
       const userId = req.user!.id;
       const filename = req.file.filename;
-      const publicUrl = `/uploads/${userId}/${filename}`;
+      let publicUrl = `/uploads/${userId}/${filename}`;
 
       // Upload backup to GCS if available
       if (gcsBucket && req.file.path) {
         const localPath = req.file.path;
         const destination = `${userId}/${filename}`;
-        gcsBucket.upload(localPath, {
-          destination: destination,
-          metadata: {
-            contentType: req.file.mimetype,
-          }
-        }).catch(() => {});
+        try {
+          await gcsBucket.upload(localPath, {
+            destination: destination,
+            metadata: { contentType: req.file.mimetype },
+          });
+          if (gcsBucketName) publicUrl = `https://storage.googleapis.com/${gcsBucketName}/${destination}`;
+        } catch (_) {}
       }
 
       // Upload backup to Supabase if available
       if (req.file.path) {
-        uploadToSupabaseStorage(req.file.path, `${userId}/${filename}`, req.file.mimetype);
+        const cloudUrl = await uploadToSupabaseStorage(req.file.path, `${userId}/${filename}`, req.file.mimetype);
+        if (cloudUrl) publicUrl = cloudUrl;
       }
 
       const db = readDB();
@@ -3075,7 +3016,7 @@ app.post('/api/posts/:id/comment', authMiddleware, (req: AuthenticatedRequest, r
       id: `s-${Date.now()}`,
       authorId: user.id,
       authorName: `${user.first_name} ${user.last_name}`,
-      authorAvatar: cleanAvatar,
+      authorAvatar: cleanAvatar || '',
       mediaUrl,
       mediaType: isVideo ? 'video' : 'image',
       created_at: createdAt.toISOString(),
@@ -3280,7 +3221,7 @@ app.post('/api/posts/:id/comment', authMiddleware, (req: AuthenticatedRequest, r
         return;
       }
       const db = readDB();
-      let ownerProfile = db.profiles.find(p =>
+      let ownerProfile: any = db.profiles.find(p =>
         (configuredOwnerEmail && p.email.toLowerCase() === configuredOwnerEmail) ||
         (p.username && p.username.toLowerCase() === configuredOwnerUsername)
       );
@@ -3910,13 +3851,14 @@ app.post('/api/posts/:id/comment', authMiddleware, (req: AuthenticatedRequest, r
       db.profiles.forEach((p: any) => {
         if (p.id !== currentUserId) {
           const roomId = [currentUserId, p.id].sort().join('_');
-          const exists = db.chatRooms.some(
+          const chatRooms: any[] = (db as any).chatRooms || ((db as any).chatRooms = []);
+          const exists = chatRooms.some(
             (r: any) =>
               r.id === roomId ||
               (r.members && r.members.includes(p.id) && r.members.includes(currentUserId) && !r.isGroup)
           );
           if (!exists) {
-            db.chatRooms.push({
+            chatRooms.push({
               id: roomId,
               name: `${p.first_name} ${p.last_name}`,
               avatar: p.avatar || null,
@@ -3935,7 +3877,7 @@ app.post('/api/posts/:id/comment', authMiddleware, (req: AuthenticatedRequest, r
       if (changed) writeDB(db);
     }
 
-    const userRooms = db.chatRooms.filter(r => r.members && (r.members.includes(currentUserId) || r.members.includes('me') || r.isGroup));
+    const userRooms = (db.chatRooms || []).filter(r => r.members && (r.members.includes(currentUserId) || r.members.includes('me') || r.isGroup));
 
     // Dynamically resolve participant names and avatars for 1-on-1 rooms
     const formattedRooms = userRooms.map(r => {
@@ -4023,7 +3965,7 @@ app.post('/api/posts/:id/comment', authMiddleware, (req: AuthenticatedRequest, r
       // Reject legacy ciphertext; clients must send plain text
       content = '';
     }
-    const stored = {
+    const stored: any = {
       id: message.id || generateId(),
       roomId: message.roomId,
       senderId: currentUserId, // always trust JWT, never client-spoofed id
@@ -5532,6 +5474,68 @@ app.get('/api/groups/:id/posts', authMiddleware, (req: AuthenticatedRequest, res
 
   // --- VITE DEV SERVER / PRODUCTION SERVING ---
 
+  // --- MOUNT ROUTES & START SERVER ---
+  try {
+    mountScaleRoutes(app, { authMiddleware });
+    mountOpsRoutes(app, { authMiddleware });
+    startJobWorkers();
+    void startRealtimeBus().then(() => console.log('[Scale] Realtime bus ready'));
+    console.log('[Scale] Scale + Ops routes mounted (SCALE_MODE=%s)', process.env.SCALE_MODE || '0');
+  } catch (err: any) {
+    console.error('[Scale] Failed to mount scale routes or start workers:', err?.message || err);
+  }
+
+  // Root endpoint
+  app.get('/', (_req, res) => {
+    res.json({ status: 'online', app: 'SomLuul Global API', version: '2.6.0' });
+  });
+
+  // Health check endpoint
+  app.get('/api/health', async (req, res) => {
+    try { await ensureDbHydrated(); } catch (_) {}
+    let posts = 0;
+    let profiles = 0;
+    let messages = 0;
+    let rooms = 0;
+    try {
+      const db = readDB();
+      posts = (db.posts || []).length;
+      profiles = (db.profiles || []).length;
+      messages = (db.chatMessages || []).length;
+      rooms = (db.chatRooms || []).length;
+    } catch (_) {}
+    const hasSupabase = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const hasGcs = !!process.env.GCS_BUCKET_NAME;
+    const supabaseHealth = hasSupabase ? await checkSupabaseHealth() : { ok: false, error: 'not configured' };
+    const jwtOk = !!(process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 16
+      && process.env.JWT_SECRET !== 'replace-with-openssl-rand-hex-32'
+      && !process.env.JWT_SECRET.startsWith('REPLACE'));
+    res.json({
+      status: 'ok',
+      time: new Date().toISOString(),
+      posts,
+      profiles,
+      messages,
+      rooms,
+      persistence: hasSupabase && supabaseHealth.ok,
+      supabase: hasSupabase,
+      supabaseHealth,
+      gcs: hasGcs,
+      jwtConfigured: jwtOk,
+      ready: jwtOk && hasSupabase && supabaseHealth.ok,
+      configErrors: typeof productionConfigErrors !== 'undefined' ? productionConfigErrors : [],
+      ownerConfigured: !!(process.env.OWNER_USERNAME && process.env.OWNER_PASSWORD),
+      cutover: typeof cutoverEnabled === 'function' ? cutoverEnabled() : false,
+      scaleMode: process.env.SCALE_MODE === '1' || process.env.SCALE_MODE === 'true',
+      region: process.env.VERCEL_REGION || process.env.FLY_REGION || process.env.RAILWAY_REGION || null,
+      cdnBase: process.env.CDN_BASE_URL || null,
+      turnConfigured: !!(process.env.TURN_URL && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL),
+      redisConfigured: !!process.env.REDIS_URL,
+      ops: '/api/ops/health',
+      metrics: '/api/ops/metrics',
+    });
+  });
+
   // Safely detect production mode in both ESM (development) and CommonJS (dist/server.cjs)
   const isProduction = 
     process.env.NODE_ENV === 'production' || 
@@ -5569,17 +5573,19 @@ app.get('/api/groups/:id/posts', authMiddleware, (req: AuthenticatedRequest, res
     });
   }
 
-  // Only start listening if we are not on Vercel
+  // Start listening if not running on serverless (Vercel)
   if (!process.env.VERCEL) {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`[FileHub Engine] Server is running on http://localhost:${PORT}`);
+    app.listen(PORT, () => {
+      console.log(`[SomLuul Server] Running successfully on port ${PORT}`);
     });
   }
 
   return app;
 }
 
-const app = startServer();
+const app = startServer().catch((err) => {
+  console.error('[SomLuul Server] Critical startup error:', err);
+});
 
 export default app;
 // Re-exported so the Vercel adapter (api/index.ts) can await any in-flight

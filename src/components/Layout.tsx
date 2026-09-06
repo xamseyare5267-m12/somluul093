@@ -1667,7 +1667,7 @@ export const Layout: React.FC<LayoutProps> = ({
                       <span className="text-amber-500 font-extrabold flex items-center gap-1">
                         <Crown size={12} /> SomLuul Owner
                       </span>
-                    ) : user.role === 'admin' ? (
+                    ) : user.role === 'moderator' ? (
                       'Administrator'
                     ) : (
                       'Normal User'

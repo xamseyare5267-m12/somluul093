@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { uploadMediaFile } from '../lib/scaleClient';
 import {
   Camera, Edit3, Plus, UserPlus, UserCheck, UserMinus, UserX,
   MapPin, Calendar, Globe, Briefcase, Phone, Mail, Award, Check,
@@ -352,33 +353,30 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Data = reader.result as string;
-      try {
-        onShowToast('Sawirka profile-ka waa la raranayaa...', 'success');
-        const res = await axios.put('/api/auth/profile', {
-          first_name: user.first_name,
-          last_name: user.last_name,
-          avatar: base64Data,
-          bio: user.bio,
-          phone: user.phone,
-        }, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
+    try {
+      onShowToast('Sawirka profile-ka waa la raranayaa...', 'success');
+      const avatarUrl = await uploadMediaFile(file);
+      if (!avatarUrl) throw new Error('Avatar upload returned no URL');
+      const res = await axios.put('/api/auth/profile', {
+        first_name: user.first_name,
+        last_name: user.last_name,
+        avatar: avatarUrl,
+        bio: user.bio,
+        phone: user.phone,
+      }, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
 
-        if (res.data.success) {
-          onProfileUpdate(res.data.user);
-          setProfile(prev => prev ? { ...prev, avatar: base64Data } : null);
-          localStorage.setItem(`somluul_avatar_${user.id}`, base64Data);
-          onShowToast('Sawirka profile-ka waa lagu guuleystay!', 'success');
-        }
-      } catch (err) {
-        console.error('Error uploading avatar:', err);
-        onShowToast('Guuldaro ayaa ku dhacday raridda sawirka.', 'error');
+      if (res.data.success) {
+        onProfileUpdate(res.data.user);
+        setProfile(prev => prev ? { ...prev, avatar: avatarUrl } : null);
+        localStorage.setItem(`somluul_avatar_${user.id}`, avatarUrl);
+        onShowToast('Sawirka profile-ka waa lagu guuleystay!', 'success');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      onShowToast('Guuldaro ayaa ku dhacday raridda sawirka.', 'error');
+    }
   };
 
   // Cover Image Selection & Upload

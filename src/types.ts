@@ -161,8 +161,13 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   content: string;
+  text?: string;
+  body?: string;
   type: 'text' | 'image' | 'video' | 'file' | 'voice' | 'location';
   mediaUrl?: string;
+  media_url?: string;
+  mediaType?: string;
+  media_type?: string;
   created_at: string;
   reaction?: string;
   isSelfDestruct?: boolean;
