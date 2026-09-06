@@ -18,6 +18,12 @@ function getApiBaseUrl(): string {
     const fromWindow = (window as any).__SOMLUUL_API__;
     if (fromWindow && typeof fromWindow === 'string') return String(fromWindow).replace(/\/$/, '');
   } catch (_) {}
+  // Netlify is the production frontend and somluul093.vercel.app is the
+  // production API. Keep this fallback aligned with public/_redirects so a
+  // missing Netlify VITE_API_URL cannot silently turn API calls into SPA HTML.
+  if (window.location.hostname === 'somluul093.netlify.app') {
+    return 'https://somluul093.vercel.app';
+  }
   if (window.location.protocol === 'http:' || window.location.protocol === 'https:') return '';
   if (window.location.protocol === 'file:' || !window.location.hostname) {
     return 'https://https-file-somluul-com-854058746919.europe-west2.run.app';

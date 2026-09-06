@@ -1,2 +1,2 @@
-/api/*  https://somluul093-c2y5ztrtk-somluul.vercel.app/api/:splat  200!
-/uploads/*  https://somluul093-c2y5ztrtk-somluul.vercel.app/uploads/:splat  200!
+/api/*  https://somluul093.vercel.app/api/:splat  200!
+/uploads/*  https://somluul093.vercel.app/uploads/:splat  200!
