@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: somluul
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/ops/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SCALE_MODE
+        value: "1"
+      - key: DATA_DIR
+        value: /data
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+    disk:
+      name: somluul-data
+      mountPath: /data
+      sizeGB: 5

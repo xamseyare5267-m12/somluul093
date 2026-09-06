@@ -1,0 +1,20 @@
+{
+  "product": "SomLuul",
+  "release": "global-production-hardening",
+  "date": "2026-08-28",
+  "productionDatabase": "Supabase PostgreSQL",
+  "mediaStorage": "Supabase Storage",
+  "fakeProductionData": false,
+  "localFilesystemAsDatabase": false,
+  "publicSignupCanSelfAssignAdmin": false,
+  "requiresExternalProviderConfiguration": true,
+  "audit": {
+    "date": "2026-08-30",
+    "status": "audited-not-100%-complete",
+    "concrete_fixes_applied": [
+      "fixed PostgreSQL stories index predicate",
+      "added Stripe webhook idempotency and payment validation",
+      "added scale-schema preflight regression check"
+    ]
+  }
+}

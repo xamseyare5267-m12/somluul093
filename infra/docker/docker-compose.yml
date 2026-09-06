@@ -1,0 +1,61 @@
+# Local / self-host stack approximating production dependencies.
+# Usage:
+#   cd infra/docker && docker compose up -d
+# Does NOT replace managed Supabase in production — use for Redis + TURN + optional Postgres.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # WebRTC TURN/STUN — required for calls behind mobile NATs
+  coturn:
+    image: instrumentisto/coturn:latest
+    network_mode: host
+    # Prefer host networking so ICE candidates work on LAN; on cloud use host NIC IP.
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    restart: unless-stopped
+    profiles: ["turn"]
+
+  # Optional local Postgres if not using Supabase
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: somluul
+      POSTGRES_PASSWORD: somluul_dev_change_me
+      POSTGRES_DB: somluul
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles: ["local-db"]
+
+  # API — build from repo root
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../../.env
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      SCALE_MODE: "1"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    profiles: ["api"]
+
+volumes:
+  redis_data:
+  pg_data:

@@ -1,0 +1,68 @@
+# Render.com Blueprint — API fleet + optional worker
+# https://render.com/docs/blueprint-spec
+# Connect repo, set secret env groups in dashboard.
+
+services:
+  - type: web
+    name: somluul-api
+    runtime: node
+    plan: standard
+    numInstances: 2
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.cjs
+    healthCheckPath: /api/ops/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SCALE_MODE
+        value: "1"
+      - key: PORT
+        value: "10000"
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: files-bucket
+      - key: CORS_ORIGINS
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CDN_BASE_URL
+        sync: false
+      - key: TURN_URL
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
+      - key: OWNER_USERNAME
+        sync: false
+      - key: OWNER_PASSWORD
+        sync: false
+      - key: ALLOW_DEV_OTP
+        value: "0"
+
+  - type: worker
+    name: somluul-jobs
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SCALE_MODE
+        value: "1"
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: RUN_JOBS_ONLY
+        value: "1"

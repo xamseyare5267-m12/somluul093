@@ -1,0 +1,130 @@
+{
+  "name": "somluul",
+  "private": true,
+  "version": "1.4.0",
+  "description": "SomLuul social platform",
+  "author": "SomLuul",
+  "main": "dist/server.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "clean": "rm -rf dist data uploads dist_electron",
+    "lint": "tsc --noEmit",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "build:exe": "npm run build && electron-builder --win --x64",
+    "build:exe:dir": "npm run build && electron-builder --win --x64 --dir",
+    "upload:supabase": "node scripts/upload-to-supabase.js",
+    "vercel-build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "migrate:json-to-supabase": "node scripts/migrate-json-to-supabase.mjs",
+    "preflight": "node scripts/production-preflight.mjs",
+    "verify": "npm run preflight && npm run preflight:hardening && npm run lint && npm run build",
+    "migrate:app-state-to-tables": "node scripts/migrate-app-state-to-tables.mjs",
+    "migrate:wallets": "node scripts/migrate-wallets-to-ledger.mjs",
+    "preflight:hardening": "node scripts/production-hardening.mjs"
+  },
+  "build": {
+    "appId": "com.somluul.desktop",
+    "productName": "SomLuul",
+    "copyright": "Copyright \u00a9 SomLuul",
+    "directories": {
+      "output": "dist_electron",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "public/favicon.ico",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "public/favicon.ico",
+        "to": "favicon.ico"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/favicon.ico",
+      "artifactName": "SomLuul-Setup-${version}-${arch}.${ext}",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SomLuul",
+      "uninstallDisplayName": "SomLuul",
+      "installerIcon": "public/favicon.ico",
+      "uninstallerIcon": "public/favicon.ico",
+      "installerHeaderIcon": "public/favicon.ico"
+    },
+    "portable": {
+      "artifactName": "SomLuul-Portable-${version}-x64.${ext}"
+    },
+    "electronVersion": "33.2.1"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
+    "@google/genai": "^2.4.0",
+    "@supabase/supabase-js": "^2.110.8",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "axios": "^1.18.1",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.3",
+    "esbuild": "^0.25.0",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.3",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "zod": "^4.4.3",
+    "ioredis": "^5.4.1",
+    "livekit-client": "^2.15.4"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.14.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "autoprefixer": "^10.4.21",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {}
+}

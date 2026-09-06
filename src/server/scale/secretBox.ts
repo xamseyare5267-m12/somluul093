@@ -1,0 +1,5 @@
+import crypto from 'node:crypto';
+function key(){const raw=process.env.WITHDRAWAL_ENCRYPTION_KEY||''; if(!/^[A-Za-z0-9+/=]{43,44}$/.test(raw)) throw new Error('WITHDRAWAL_ENCRYPTION_KEY must be a base64-encoded 32-byte key'); return Buffer.from(raw,'base64');}
+export function encryptSecret(value:string){const iv=crypto.randomBytes(12),tag=Buffer.alloc(0);const c=crypto.createCipheriv('aes-256-gcm',key(),iv);const enc=Buffer.concat([c.update(value,'utf8'),c.final()]);return `v1.${iv.toString('base64url')}.${c.getAuthTag().toString('base64url')}.${enc.toString('base64url')}`;}
+export function decryptSecret(value:string){const [v,ivB,tagB,dataB]=String(value).split('.');if(v!=='v1'||!ivB||!tagB||!dataB)throw new Error('Invalid encrypted secret');const d=crypto.createDecipheriv('aes-256-gcm',key(),Buffer.from(ivB,'base64url'));d.setAuthTag(Buffer.from(tagB,'base64url'));return Buffer.concat([d.update(Buffer.from(dataB,'base64url')),d.final()]).toString('utf8');}
+export function maskSecret(value:string){const s=String(value||'');return s.length<=4?'••••':`${'•'.repeat(Math.min(8,Math.max(4,s.length-4)))}${s.slice(-4)}`;}

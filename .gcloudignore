@@ -1,0 +1,28 @@
+# This file specifies which files to ignore when uploading to Google Cloud Run/Build.
+# It prevents local dependencies and build artifacts from causing upload failures.
+
+# Ignore node_modules directory which contains thousands of local dependency files
+node_modules/
+
+# Ignore local builds and output folders
+dist/
+build/
+bin/
+obj/
+
+# Ignore local git files
+.git/
+.gitignore
+
+# Ignore operating system artifacts
+.DS_Store
+Thumbs.db
+
+# Ignore local database and dynamic uploads
+data/
+uploads/
+
+# Ignore environment file with potential secrets
+.env
+.env.*
+!.env.example

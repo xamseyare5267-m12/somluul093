@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+dist_electron/
+build/Release/
+*.tsbuildinfo
+.vite/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local data / uploads
+data/
+uploads/
+tmp/
+*.db
+*.sqlite
+
+# Electron
+out/
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.pem
+*.key
+*.p12
+.cache/
+.turbo/
+

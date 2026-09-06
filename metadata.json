@@ -1,0 +1,6 @@
+{
+  "name": "SomLuul",
+  "description": "Enterprise-grade social communication, encrypted messaging, multi-category marketplace, and content monetization Web App built for global communities.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
