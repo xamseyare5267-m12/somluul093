@@ -162,20 +162,23 @@ export default function App() {
 
             if (backupProfileStr) {
               const backupProfile = JSON.parse(backupProfileStr);
-              await axios.post('/api/auth/restore-session', {
+              const restoredResponse = await axios.post('/api/auth/restore-session', {
                 token: parsed.token,
                 profile: backupProfile
               });
 
+              const restoredToken = restoredResponse.data.token || parsed.token;
               const retryResponse = await axios.get('/api/auth/me', {
-                headers: { Authorization: `Bearer ${parsed.token}` }
+                headers: { Authorization: `Bearer ${restoredToken}` }
               });
 
               const updatedSession = {
-                token: parsed.token,
+                token: restoredToken,
+                deviceId: restoredResponse.data.deviceId || parsed.deviceId,
                 user: retryResponse.data.user
               };
               setSession(updatedSession);
+              localStorage.setItem('auth_session', JSON.stringify(updatedSession));
               localStorage.setItem(`somluul_profile_backup_${retryResponse.data.user.id}`, JSON.stringify(retryResponse.data.user));
               setIsSessionLoading(false);
               return;

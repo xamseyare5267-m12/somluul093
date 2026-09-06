@@ -1127,7 +1127,16 @@ async function startServer() {
         res.status(403).json({ error: 'Akoonka waa la xannibay.' });
         return;
       }
-      res.json({ success: true, user: existing, token });
+      // Rotate legacy or stale sessions into a fresh device-bound token. Reusing
+      // the old token leaves authenticated actions such as posting blocked after
+      // a deployment changes the session/device requirements.
+      const sessionDetail = registerDeviceSession(existing.id, req);
+      res.json({
+        success: true,
+        user: existing,
+        token: sessionDetail.token,
+        deviceId: sessionDetail.id,
+      });
     } catch {
       res.status(401).json({ error: 'Session-ku wuu dhacay ama ma saxna. Fadlan mar kale gal.' });
     }
