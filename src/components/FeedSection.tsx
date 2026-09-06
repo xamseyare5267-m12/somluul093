@@ -576,7 +576,7 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
     }
 
     try {
-      const { post: newCreatedPost } = await createFeedPost(payload);
+      const { post: newCreatedPost } = await createFeedPost(payload, activeToken);
 
       setPosts([newCreatedPost, ...posts]);
       setNewPostContent('');
@@ -587,11 +587,12 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (videoInputRef.current) videoInputRef.current.value = '';
       if (onShowToast) onShowToast('Farriintaada/Muuqaalkaaga waa la daabacay!', 'success');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating post on server:', err);
       if (onShowToast) {
+        const serverError = err?.response?.data?.error;
         onShowToast(
-          language === 'so' ? 'Post-ka lama daabicin. Server-ka hubi oo isku day mar kale.' : 'Post was not published. Check the server and try again.',
+          serverError || (language === 'so' ? 'Post-ka lama daabicin. Server-ka hubi oo isku day mar kale.' : 'Post was not published. Check the server and try again.'),
           'error'
         );
       }

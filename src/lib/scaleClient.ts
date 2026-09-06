@@ -125,7 +125,11 @@ export async function fetchFeedPosts(params?: {
   return { list: [], hasMore: false, usedScale: false };
 }
 
-export async function createFeedPost(payload: Record<string, unknown>): Promise<{ post: any; usedScale: boolean }> {
+export async function createFeedPost(
+  payload: Record<string, unknown>,
+  authToken?: string,
+): Promise<{ post: any; usedScale: boolean }> {
+  const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
   const status = await getScaleStatus();
   if (isPostsScale(status)) {
     try {
@@ -136,13 +140,13 @@ export async function createFeedPost(payload: Record<string, unknown>): Promise<
         mediaList: payload.mediaList || payload.media_list || [],
         visibility: payload.visibility || 'public',
       };
-      const res = await axios.post('/api/scale/posts', body, { timeout: 45000 });
+      const res = await axios.post('/api/scale/posts', body, { timeout: 45000, headers: authHeaders });
       return { post: mapScalePost(res.data?.post || res.data), usedScale: true };
     } catch {
       /* fall through */
     }
   }
-  const res = await axios.post('/api/posts', payload, { timeout: 45000 });
+  const res = await axios.post('/api/posts', payload, { timeout: 45000, headers: authHeaders });
   return { post: res.data, usedScale: false };
 }
 
